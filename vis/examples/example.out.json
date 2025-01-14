@@ -1,0 +1,165 @@
+{
+  "start": [
+    1220,
+    "spring"
+  ],
+  "start_stock": {
+    "cr": 8,
+    "vi": 12
+  },
+  "end": [
+    1222,
+    "summer"
+  ],
+  "ledger": {
+    "1220": {
+      "spring": [
+        {
+          "description": "A recurring source of Vim vis",
+          "vis": {
+            "vi": 2
+          },
+          "year": 1220,
+          "season": "spring",
+          "magus": null,
+          "period": 1,
+          "end_year": null
+        }
+      ],
+      "summer": [],
+      "autumn": [],
+      "winter": [
+        {
+          "description": "Aegis of the Earth (lvl 20)",
+          "vis": {
+            "vi": -4
+          },
+          "year": 1220,
+          "season": "winter",
+          "magus": null,
+          "period": 1,
+          "end_year": null
+        }
+      ]
+    },
+    "1221": {
+      "spring": [
+        {
+          "description": "A recurring source of Vim vis",
+          "vis": {
+            "vi": 2
+          },
+          "year": 1220,
+          "season": "spring",
+          "magus": null,
+          "period": 1,
+          "end_year": null
+        }
+      ],
+      "summer": [
+        {
+          "description": "Surgeon Healing Touch (lvl 20)",
+          "vis": {
+            "cr": -4
+          },
+          "year": 1221,
+          "season": "summer",
+          "magus": null,
+          "period": null,
+          "end_year": null
+        }
+      ],
+      "autumn": [
+        {
+          "description": "Longevity ritual",
+          "vis": {
+            "cr": -4
+          },
+          "year": 1221,
+          "season": "autumn",
+          "magus": "Magus A",
+          "period": null,
+          "end_year": null
+        }
+      ],
+      "winter": [
+        {
+          "description": "Aegis of the Earth (lvl 20)",
+          "vis": {
+            "vi": -4
+          },
+          "year": 1220,
+          "season": "winter",
+          "magus": null,
+          "period": 1,
+          "end_year": null
+        }
+      ]
+    },
+    "1222": {
+      "spring": [
+        {
+          "description": "A recurring source of Vim vis",
+          "vis": {
+            "vi": 2
+          },
+          "year": 1220,
+          "season": "spring",
+          "magus": null,
+          "period": 1,
+          "end_year": null
+        }
+      ],
+      "summer": []
+    }
+  },
+  "stocks": {
+    "1220": {
+      "spring": {
+        "cr": 8,
+        "vi": 14
+      },
+      "summer": {
+        "cr": 8,
+        "vi": 14
+      },
+      "autumn": {
+        "cr": 8,
+        "vi": 14
+      },
+      "winter": {
+        "cr": 8,
+        "vi": 10
+      }
+    },
+    "1221": {
+      "spring": {
+        "cr": 8,
+        "vi": 12
+      },
+      "summer": {
+        "cr": 4,
+        "vi": 12
+      },
+      "autumn": {
+        "vi": 12
+      },
+      "winter": {
+        "vi": 8
+      }
+    },
+    "1222": {
+      "spring": {
+        "vi": 10
+      },
+      "summer": {
+        "vi": 10
+      }
+    }
+  },
+  "magi_uses": {
+    "Magus A": {
+      "cr": 4
+    }
+  }
+}

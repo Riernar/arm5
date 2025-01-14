@@ -4,6 +4,17 @@ Script to manage vis stock in a covenant. From a list of vis transaction (e.g. v
 enchantments, ...) produces a ledger that describe the state of the vis stocks for all years and the consumption of each
 magi, as well a detailed records of vis movement.
 
+- [Vis script](#vis-script)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Examples](#examples)
+    - [Inputs](#inputs)
+      - [JSON Inputs (default)](#json-inputs-default)
+      - [CSV Inputs](#csv-inputs)
+    - [Outputs](#outputs)
+      - [JSON](#json)
+      - [Markdown](#markdown)
+
 ## Installation
 
 The script is a `python>=3.12` script. We recommend using [`uv`][uv] to run the script, as `uv run --script vis.py` will
@@ -41,6 +52,18 @@ passed, the script will by default read/write from/to STDIN/STDOUT. By default, 
 The `-input-format` and `--output-format` argument can be used to control the formats.
 
 See also the `--help` message of the script for detailed CLI arguments.
+
+The helper script `vis.sh` is a useful bash wrapper around the python script that:
+
+- downloads & runs the latest version of the python code directly from github
+- validate that the generated file has not been manually edited by maintaining a sha256 hash of the generated file
+
+It assumes the input is named `vis.json` and the output `vis.md`. You can customize the variable in the file to reflect
+your own setup.
+
+### Examples
+
+See the [examples/](./examples/) folder for example input and output files.
 
 ### Inputs
 
@@ -115,6 +138,12 @@ the starting stock and several vis on the same row:
 The script produces a ledger with detailed vis stocks as a function of time (year and season), total consumption for
 each magi and detailed records of what happened to the stocks for each year and season.
 
-The default output format is JSON, which contains the full details. The script can also produce a markdown report that
-is much more human readable, featuring tables. In this case, the main stock tables only describe the state of the stock
-per year, instead of per season, to keep it readable.
+#### JSON
+
+The default output format is JSON, which contains full details. This include the recorded transaction and resulting
+stocks for each seasons, as well as per-magus consumption tracking.
+
+#### Markdown
+
+The script can also produce a markdown report that is more human readable, featuring tables. In this case, the main
+stock tables only describe the state of the stock per year, instead of per season, to keep it readable.

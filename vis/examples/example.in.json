@@ -1,0 +1,43 @@
+{
+    "start_stock": {
+        "cr": 8,
+        "vim": 12
+    },
+    "records": [
+        {
+            "description": "A recurring source of Vim vis",
+            "year": 1220,
+            "season": "spring",
+            "period": 1,
+            "vis": {
+                "vi": 2
+            }
+        },
+        {
+            "description": "Aegis of the Earth (lvl 20)",
+            "year": 1220,
+            "season": "winter",
+            "period": 1,
+            "vis": {
+                "vi": -4
+            }
+        },
+        {
+            "description": "Surgeon Healing Touch (lvl 20)",
+            "year": 1221,
+            "season": "summer",
+            "vis": {
+                "cr": -4
+            }
+        },
+        {
+            "description": "Longevity ritual",
+            "magus": "Magus A",
+            "year": 1221,
+            "season": "autumn",
+            "vis": {
+                "cr": -4
+            }
+        }
+    ]
+}

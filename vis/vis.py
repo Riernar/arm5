@@ -20,151 +20,13 @@ import pathlib
 import re
 import sys
 import typing
-from typing import Any, Final, Iterable, Iterator, Literal, Mapping, Sequence, TextIO
+from typing import Any, Final, Iterable, Iterator, Literal, Mapping, NoReturn, Sequence, TextIO
 
 LOGGER = logging.getLogger(__name__)
 
 
 class UserError(Exception):
     """Known error that should be reported to the user"""
-
-
-def cli() -> None:
-    parser = argparse.ArgumentParser(description="CLI program to manage vis stocks")
-
-    inputs = parser.add_argument_group(title="inputs", description="inputs")
-    inputs.add_argument(
-        "-i",
-        "--input",
-        default=sys.stdin,
-        type=pathlib.Path,
-        help="Input file to read input data from. Defaults to STDIN.",
-    )
-    inputs.add_argument(
-        "--input-format",
-        choices=["json", "csv"],
-        help=(
-            "Input format. Defaults to 'json' if reading from STDIN,"
-            " or detected from input file extension if reading from a file."
-        ),
-    )
-
-    outputs = parser.add_argument_group(title="outputs", description="outputs")
-    outputs.add_argument(
-        "-o", "--output", default=sys.stdout, type=pathlib.Path, help="Output path. Defaults to STDOUT"
-    )
-    outputs.add_argument(
-        "--output-format",
-        choices=["json", "md"],
-        help=(
-            "Input format. Defaults to 'json' if writing to STDOUT,"
-            " or inferred from output file extension if writing to file."
-        ),
-    )
-
-    parser.add_argument("--debug", action="store_true", help="Activate debugging")
-    args = parser.parse_args()
-    _setup_logging()
-    try:
-        # Validate CLI args
-        input_format = getattr(args, "input_format", None) or _infer_format(
-            args.input, default="json", supported={"json", "csv"}
-        )
-        output_format = getattr(args, "output_format", None) or _infer_format(
-            args.output, default="json", supported={"json", "md"}
-        )
-
-        with (
-            _open_file_or_stream(args.input, mode="r") as infile,
-            _open_file_or_stream(args.output, mode="w") as outfile,
-        ):
-            # Notify the user to avoid confusion
-            if infile is sys.stdin:
-                LOGGER.info("Reading from STDIN")
-            start_stock, records = _READERS[input_format](infile)
-            ledger = VisLedger.from_records(records, start_stock=start_stock)
-            _WRITERS[output_format](ledger, outfile)
-
-    except UserError as err:
-        if sys.stdout.isatty():
-            template = "\033[1;91m{}\033[0m"
-        else:
-            template = "{}"
-        print(template.format(str(err)), file=sys.stderr, flush=True)
-        sys.exit(1)
-
-
-def _setup_logging() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-
-def _infer_format(arg: TextIO | pathlib.Path, *, default: str, supported: set[str]) -> str:
-    if isinstance(arg, pathlib.Path):
-        # The slice [1:] removes the leading dot that is included in the suffix by python
-        extension = arg.suffixes[-1][1:]
-        if extension not in supported:
-            raise UserError(f"Unsupported format '{extension}' in {arg}: supported formats are {sorted(supported)}")
-        return extension
-
-    return default
-
-
-@contextlib.contextmanager
-def _open_file_or_stream(arg: TextIO | pathlib.Path, mode: Literal["r", "w"]) -> Iterator[TextIO]:
-    if isinstance(arg, pathlib.Path):
-        try:
-            with open(arg, mode, encoding="utf-8") as file:
-                yield file
-        except (FileNotFoundError, NotADirectoryError) as err:
-            raise UserError(f"{type(err).__name__}: {err}")
-
-    else:
-        yield arg
-
-
-def _read_json(stream: TextIO) -> tuple[Mapping[str, int], tuple["VisRecord", ...]]:
-    raw = json.load(stream)
-    if not isinstance(raw, dict):
-        raise ValueError(f"Expected top-level JSON Object, got {type(raw)}")
-    start_stock = {vis: int(quantity) for vis, quantity in raw.get("start_stock", {})}
-    records = tuple(VisRecord(**data) for data in raw.get("records", []))
-    return start_stock, records
-
-
-def _read_csv(stream: TextIO) -> tuple[Mapping[str, int], tuple["VisRecord", ...]]:
-    reader = csv.DictReader(stream)
-
-    # Build the fields we need to have in the CSV
-    fields = {field.name for field in dataclasses.fields(VisRecord)} - {"vis"}
-    key_fields = sorted(fields)
-    fields |= {"art", "amount"}
-
-    headers = set(reader.fieldnames)  # type: ignore
-    if unknown_headers := headers - fields:
-        raise UserError(f"Invalid CSV: unknown headers {sorted(unknown_headers)}: supported headers: {sorted(fields)}")
-    if missing_headers := fields - headers:
-        raise UserError(f"Invalid CSV:missing headers {sorted(missing_headers)}")
-
-    # When reading CSV, we need to agglomerate together lines that express several vis types for a single action
-    start_stock = collections.Counter()
-    groups = collections.defaultdict(collections.Counter)
-    get_key = operator.itemgetter(*key_fields)
-    for row in reader:
-        art = row["art"]
-        amount = int(row["amount"])
-        if row["year"] in {None, ""}:
-            start_stock[art] += amount
-        else:
-            key = get_key(row)
-            groups[key][art] += amount
-    records = tuple(VisRecord(vis=Inventory(vis), **dict(zip(key_fields, key))) for key, vis in groups.items())
-    return Inventory(start_stock), records
-
-
-_READERS: Final = {
-    "json": _read_json,
-    "csv": _read_csv,
-}
 
 
 @functools.total_ordering
@@ -309,18 +171,14 @@ class VisLedger:
         records: Iterable[VisRecord],
         *,
         start_stock: Mapping[str, int] | None = None,
-        start_year: int | None = None,
-        start_season: Season | None = None,
         end_year: int | None = None,
         end_season: Season | None = None,
     ) -> "VisLedger":
         """Compute a full ledger from initial stocks and vis records"""
         records = list(records)
 
-        start_year = start_year or min(record.year for record in records)
-        start_season = start_season or min(
-            (record.season for record in records if record.year == start_year), default=Season.SPRING
-        )
+        start_year = min(record.year for record in records)
+        start_season = min((record.season for record in records if record.year == start_year), default=Season.SPRING)
 
         end_year = end_year or max(record.year for record in records)
         end_season = end_season or max(
@@ -336,9 +194,9 @@ class VisLedger:
             year_ledger: dict[Season, tuple[VisRecord, ...]] = {}
             year_stocks: dict[Season, Inventory] = {}
 
-            start_season = start_season if year == start_year else Season.SPRING
-            end_season = end_season if year == end_year else Season.WINTER
-            for season in Season.range(start_season, end_season):
+            first_season = start_season if year == start_year else Season.SPRING
+            last_season = end_season if year == end_year else Season.WINTER
+            for season in Season.range(first_season, last_season):
                 year_ledger[season] = tuple(record for record in records if record.is_active_on(year, season))
                 stock_update = sum((Inventory(record.vis) for record in year_ledger[season]), start=Inventory())
                 stock = stock + stock_update
@@ -364,6 +222,164 @@ class VisLedger:
             stocks=stocks,
             magi_uses=magi_uses,
         )
+
+
+def cli() -> None:
+    parser = _get_arg_parser()
+    args = parser.parse_args()
+    _setup_logging()
+    try:
+        with _open_input_output(args) as (inputs, outputs):
+            start_stock, records = _READERS[inputs.format](inputs.file)
+            ledger = VisLedger.from_records(
+                records, start_stock=start_stock, end_year=args.end_year, end_season=args.end_season
+            )
+            _WRITERS[outputs.format](ledger, outputs.file)
+
+    except UserError as err:
+        _error(err)
+
+
+def _get_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="CLI program to manage vis stocks")
+
+    inputs = parser.add_argument_group(title="inputs", description="inputs")
+    inputs.add_argument(
+        "-i",
+        "--input",
+        default=sys.stdin,
+        type=pathlib.Path,
+        help="Input file to read input data from. Defaults to STDIN.",
+    )
+    inputs.add_argument(
+        "--input-format",
+        default=None,
+        choices=["json", "csv"],
+        help=(
+            "Input format. Defaults to 'json' if reading from STDIN,"
+            " or detected from input file extension if reading from a file."
+        ),
+    )
+
+    outputs = parser.add_argument_group(title="outputs", description="outputs")
+    outputs.add_argument(
+        "-o", "--output", default=sys.stdout, type=pathlib.Path, help="Output path. Defaults to STDOUT"
+    )
+    outputs.add_argument(
+        "--output-format",
+        default=None,
+        choices=["json", "md"],
+        help=(
+            "Input format. Defaults to 'json' if writing to STDOUT,"
+            " or inferred from output file extension if writing to file."
+        ),
+    )
+    parser.add_argument("--end-year", type=int, default=None, help="Last year to include in the ledger")
+    parser.add_argument("--end-season", type=Season, default=None, help="Last season to include in the ledger")
+    return parser
+
+
+def _setup_logging() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+@dataclasses.dataclass(frozen=True)
+class _FormatIO:
+    file: TextIO
+    format: str
+
+
+@contextlib.contextmanager
+def _open_input_output(args: argparse.Namespace) -> Iterator[tuple[_FormatIO, _FormatIO]]:
+    input_format = args.input_format or _infer_format(args.input, default="json", supported={"json", "csv"})
+    output_format = args.output_format or _infer_format(args.output, default="json", supported={"json", "md"})
+
+    with (
+        _open_file_or_stream(args.input, mode="r") as infile,
+        _open_file_or_stream(args.output, mode="w") as outfile,
+    ):
+        # Notify the user to avoid confusion
+        if infile is sys.stdin:
+            LOGGER.info("Reading from STDIN")
+        yield _FormatIO(infile, input_format), _FormatIO(outfile, output_format)
+
+
+def _infer_format(arg: TextIO | pathlib.Path, *, default: str, supported: set[str]) -> str:
+    if isinstance(arg, pathlib.Path):
+        # The slice [1:] removes the leading dot that is included in the suffix by python
+        extension = arg.suffixes[-1][1:]
+        if extension not in supported:
+            raise UserError(f"Unsupported format '{extension}' in {arg}: supported formats are {sorted(supported)}")
+        return extension
+
+    return default
+
+
+def _error(err: Exception) -> NoReturn:
+    if sys.stdout.isatty():
+        template = "\033[1;91m{}\033[0m"
+    else:
+        template = "{}"
+    print(template.format(str(err)), file=sys.stderr, flush=True)
+    sys.exit(1)
+
+
+@contextlib.contextmanager
+def _open_file_or_stream(arg: TextIO | pathlib.Path, mode: Literal["r", "w"]) -> Iterator[TextIO]:
+    if isinstance(arg, pathlib.Path):
+        try:
+            with open(arg, mode, encoding="utf-8") as file:
+                yield file
+        except (FileNotFoundError, NotADirectoryError) as err:
+            raise UserError(f"{type(err).__name__}: {err}")
+
+    else:
+        yield arg
+
+
+def _read_json(stream: TextIO) -> tuple[Mapping[str, int], tuple["VisRecord", ...]]:
+    raw = json.load(stream)
+    if not isinstance(raw, dict):
+        raise ValueError(f"Expected top-level JSON Object, got {type(raw)}")
+    start_stock = {vis: int(quantity) for vis, quantity in raw.get("start_stock", {}).items()}
+    records = tuple(VisRecord(**data) for data in raw.get("records", []))
+    return start_stock, records
+
+
+def _read_csv(stream: TextIO) -> tuple[Mapping[str, int], tuple["VisRecord", ...]]:
+    reader = csv.DictReader(stream)
+
+    # Build the fields we need to have in the CSV
+    fields = {field.name for field in dataclasses.fields(VisRecord)} - {"vis"}
+    key_fields = sorted(fields)
+    fields |= {"art", "amount"}
+
+    headers = set(reader.fieldnames)  # type: ignore
+    if unknown_headers := headers - fields:
+        raise UserError(f"Invalid CSV: unknown headers {sorted(unknown_headers)}: supported headers: {sorted(fields)}")
+    if missing_headers := fields - headers:
+        raise UserError(f"Invalid CSV:missing headers {sorted(missing_headers)}")
+
+    # When reading CSV, we need to agglomerate together lines that express several vis types for a single action
+    start_stock = collections.Counter()
+    groups = collections.defaultdict(collections.Counter)
+    get_key = operator.itemgetter(*key_fields)
+    for row in reader:
+        art = row["art"]
+        amount = int(row["amount"])
+        if row["year"] in {None, ""}:
+            start_stock[art] += amount
+        else:
+            key = get_key(row)
+            groups[key][art] += amount
+    records = tuple(VisRecord(vis=Inventory(vis), **dict(zip(key_fields, key))) for key, vis in groups.items())
+    return Inventory(start_stock), records
+
+
+_READERS: Final = {
+    "json": _read_json,
+    "csv": _read_csv,
+}
 
 
 def _write_json(ledger: VisLedger, stream: TextIO) -> None:
@@ -418,7 +434,8 @@ def _md_magi_uses(ledger: VisLedger) -> Iterable[str]:
     yield ""
     yield "## Magi consumption"
     yield ""
-    vis_types = _sort_vis_names(set().union(*(uses.keys() for uses in ledger.magi_uses.values())))
+    vis_types = set().union(*(uses.keys() for uses in ledger.magi_uses.values()))
+    vis_types = _sort_vis_names(vis_types, all_vis=True)
     magi = [*sorted(ledger.magi_uses)]
     columns = {"": [magus.title() for magus in magi]}
 
@@ -435,7 +452,7 @@ def _md_yearly_stocks(ledger: VisLedger) -> Iterable[str]:
     vis_types_set = set(ledger.start_stock).union(
         *(inventory.keys() for season_stocks in ledger.stocks.values() for inventory in season_stocks.values())
     )
-    vis_types = _sort_vis_names(vis_types_set)
+    vis_types = _sort_vis_names(vis_types_set, all_vis=True)
     years = sorted(ledger.stocks, reverse=True)
     columns = {"year": list(map(str, years))}
     for vis in vis_types:
@@ -467,7 +484,11 @@ def _md_records(ledger: VisLedger) -> Iterable[str]:
                 yield f"  - **{season.value.title()}**"
 
                 for record in year_records[season]:
-                    vis_diff = ", ".join(f"{amount:+} {vis.title()}" for vis, amount in record.vis.items())
+                    # NOTE: In python 3.7+ python dictionaries preserve order and this is part of the API
+                    vis = {vis: record.vis[vis] for vis in _sort_vis_names(record.vis)}
+                    vis_pos = ", ".join(f"{amount:+} {vis.title()}" for vis, amount in vis.items() if amount > 0)
+                    vis_neg = ", ".join(f"{amount:+} {vis.title()}" for vis, amount in vis.items() if amount < 0)
+                    vis_diff = ", ".join(filter(None, [vis_pos, vis_neg]))  # add a separator if necessary
                     if record.magus:
                         yield f"    - _{record.description}_ ({record.magus.title()}): {vis_diff}"
                     else:
@@ -477,7 +498,7 @@ def _md_records(ledger: VisLedger) -> Iterable[str]:
 _split_name = re.compile(r"[.,;:/|+&-]").split
 
 
-def _sort_vis_names(names: Iterable[str]) -> list[str]:
+def _sort_vis_names(names: Iterable[str], *, all_vis: bool = False) -> list[str]:
     arts = ["cr", "in", "mu", "pe", "re", "an", "aq", "au", "co", "he", "ig", "im", "me", "te", "vi"]
     indices = {art: index for index, art in enumerate(arts)}
 
@@ -485,7 +506,10 @@ def _sort_vis_names(names: Iterable[str]) -> list[str]:
         parts = [part.strip().lower() for part in _split_name(name)]
         return (len(parts), *tuple(indices.get(part.lower()[:2], len(part)) for part in parts))
 
-    return sorted([*arts, *names], key=key)
+    if all_vis:
+        names = [*arts, *names]
+
+    return sorted(names, key=key)
 
 
 def _md_table(columns: dict[str, Any]) -> Iterable[str]:
